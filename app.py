@@ -1,49 +1,55 @@
 import os
 import re
 import csv
+import shutil  # ファイルのコピーとディレクトリ操作に使用
 
-def replace_footer_content(folder_path, exclude_folders, tag_name, id_name, min_line_count, new_content, base_url, output_csv_path):
-  modified_files = []
+def replace_footer_content(folder_path, exclude_folders, tag_name, id_name, min_line_count, new_content, base_url, output_csv_path, output_folder):
+    modified_files = []
 
-  # 除外フォルダのパス
-  full_exclude_folders = [os.path.normpath(os.path.join(folder_path, folder)) for folder in exclude_folders]
-  
-  # 正規表現をコンパイル（タグの前のインデントを含める）
-  tag_regex = re.compile(r'(\s*)<{}[^>]*id=["\']{}["\'].*?</{}>'.format(tag_name, id_name, tag_name), flags=re.DOTALL)
+    # 除外フォルダのパス
+    full_exclude_folders = [os.path.normpath(os.path.join(folder_path, folder)) for folder in exclude_folders]
 
-  for root, dirs, files in os.walk(folder_path):
-    for filename in files:
-      if filename.endswith('.html'):
-        file_path = os.path.join(root, filename)
+    # 正規表現をコンパイル（タグの前のインデントを含める）
+    tag_regex = re.compile(r'(\s*)<{}[^>]*id=["\']{}["\'].*?</{}>'.format(tag_name, id_name, tag_name), flags=re.DOTALL)
 
-        # 除外リストに含まれるフォルダのパスが現在のファイルパスに含まれているかチェック
-        if any(file_path.startswith(exclude_folder) for exclude_folder in full_exclude_folders):
-            continue  
+    for root, dirs, files in os.walk(folder_path):
+        for filename in files:
+            if filename.endswith('.html'):
+                file_path = os.path.join(root, filename)
 
-        with open(file_path, 'r', encoding='utf-8') as file:
-          original_content = file.read()
+                # 除外リストに含まれるフォルダのパスが現在のファイルパスに含まれているかチェック
+                if any(file_path.startswith(exclude_folder) for exclude_folder in full_exclude_folders):
+                    continue  
 
-        for match in tag_regex.finditer(original_content):
-          indent = match.group(1)
-          line_count = match.group(0).count('\n') + 1
-          if line_count > min_line_count:
-            # インデントを保持して新しいコンテンツを挿入
-            indented_content = ''.join(indent + line if line.strip() else line for line in new_content.split('\n'))
-            new_content_full = original_content[:match.start()] + indented_content + original_content[match.end():]
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    original_content = file.read()
 
-            with open(file_path, 'w', encoding='utf-8') as file:
-              file.write(new_content_full)
+                new_content_full = original_content
+                for match in tag_regex.finditer(original_content):
+                    indent = match.group(1)
+                    line_count = match.group(0).count('\n') + 1
+                    if line_count > min_line_count:
+                        # インデントを保持して新しいコンテンツを挿入
+                        indented_content = ''.join(indent + line if line.strip() else line for line in new_content.split('\n'))
+                        new_content_full = original_content[:match.start()] + indented_content + original_content[match.end():]
 
-            # 修正されたファイルのパスを記録
-            relative_path = os.path.relpath(file_path, start=folder_path)
-            full_url = os.path.join(base_url, relative_path.replace(os.sep, '/'))
-            modified_files.append((relative_path, full_url))
+                        with open(file_path, 'w', encoding='utf-8') as file:
+                            file.write(new_content_full)
 
-  # CSVファイルに結果を書き出し
-  with open(output_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(['相対パス', 'URL'])
-    writer.writerows(modified_files)
+                        # 修正されたファイルのパスを記録
+                        relative_path = os.path.relpath(file_path, start=folder_path)
+                        output_dir = os.path.join(output_folder, os.path.dirname(relative_path))
+                        os.makedirs(output_dir, exist_ok=True)
+                        output_file_path = os.path.join(output_dir, filename)
+                        shutil.copyfile(file_path, output_file_path)
+                        full_url = os.path.join(base_url, relative_path.replace(os.sep, '/'))
+                        modified_files.append((relative_path, full_url))
+
+    # CSVファイルに結果を書き出し
+    with open(output_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['相対パス', 'URL'])
+        writer.writerows(modified_files)
 
 # フォルダのパスを指定
 folder_path = './example'
@@ -73,4 +79,7 @@ base_url = 'http://example.com/'
 # 変更ファイルとパスをcsvに記録
 output_csv_path = 'modified_files.csv'
 
-replace_footer_content(folder_path, exclude_folders, tag_name, id_name, min_line_count, new_content, base_url, output_csv_path)
+# 出力フォルダー
+output_folder = './output'
+
+replace_footer_content(folder_path, exclude_folders, tag_name, id_name, min_line_count, new_content, base_url, output_csv_path, output_folder)

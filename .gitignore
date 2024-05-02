@@ -1,0 +1,5 @@
+# modified_files.csv を無視
+modified_files.csv
+
+# output ディレクトリを無視（ディレクトリ内のすべてのファイルとサブディレクトリも含む）
+output/
